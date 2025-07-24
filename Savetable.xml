@@ -1,0 +1,55 @@
+function saveDayToXML() {
+  let table = document.getElementById(`day${currentDay + 1}`);
+  let rows = Array.from(table.rows);
+  let xml = `<day index="${currentDay + 1}">\n`;
+  for (let row of rows) {
+    xml += "  <row>\n";
+    for (let i = 0; i < row.cells.length - 1; i++) { // skip flashcard button cell
+      xml += `    <col>${row.cells[i].innerText}</col>\n`;
+    }
+    xml += "  </row>\n";
+  }
+  xml += "</day>";
+
+  let blob = new Blob([xml], { type: "text/xml" });
+  let a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `day-${currentDay + 1}.xml`;
+  a.click();
+}
+
+function loadFromXML(event) {
+  let file = event.target.files[0];
+  if (!file) return;
+
+  let reader = new FileReader();
+  reader.onload = function(e) {
+    let parser = new DOMParser();
+    let xmlDoc = parser.parseFromString(e.target.result, "text/xml");
+    let dayIndex = parseInt(xmlDoc.documentElement.getAttribute("index")) - 1;
+    let rows = xmlDoc.getElementsByTagName("row");
+
+    let restored = [];
+    for (let row of rows) {
+      let cols = Array.from(row.getElementsByTagName("col")).map(col => col.textContent);
+      restored.push(cols);
+    }
+
+    wordData[dayIndex] = restored;
+    // Rebuild table for that day
+    let table = document.getElementById(`day${dayIndex + 1}`);
+    table.innerHTML = ""; // clear old
+    restored.forEach((cols, idx) => {
+      let r = table.insertRow();
+      cols.forEach((val, cidx) => {
+        let cell = r.insertCell();
+        cell.innerText = val;
+      });
+      let btn = r.insertCell();
+      btn.innerHTML = `<button onclick=\"startFlashcard(${dayIndex}, ${idx})\">🃏</button>`;
+    });
+
+    alert(`Day ${dayIndex + 1} restored.`);
+  };
+  reader.readAsText(file);
+}
