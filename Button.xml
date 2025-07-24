@@ -1,0 +1,3 @@
+<!-- Save / Load buttons -->
+<button onclick="saveDayToXML()">💾 Save This Day</button>
+<input type="file" id="uploadFile" onchange="loadFromXML(event)" />
