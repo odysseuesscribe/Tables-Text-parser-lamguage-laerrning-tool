@@ -2,199 +2,283 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Language Learner</title>
+  <title>Language Learner Unified Table</title>
   <style>
-    table, td { border: 1px solid #ccc; border-collapse: collapse; padding: 4px; }
-    .hidden { display: none; }
-    .highlight { background-color: yellow; }
-    #flashcardScreen { 
-      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: white; display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      font-size: 2em; z-index: 9999;
-    }
-    #flashcardScreen button { font-size: 1em; margin: 10px; padding: 10px; }
+    table, th, td { border: 1px solid #ccc; border-collapse: collapse; padding: 4px; }
+    .hidden-row { display: none; }
+    #wordTable { margin-top: 10px; }
   </style>
 </head>
 <body>
 
-<h1>Language Learning App</h1>
+<h1>Language Learner</h1>
 
-<!-- Day Selector -->
+<label for="daySelector">Select Day:</label>
 <select id="daySelector"></select>
-<button onclick="showSelectedDay()">Show Day</button>
+
+<!-- The One Great Table -->
+<table id="wordTable">
+  <thead>
+    <tr><th>Spanish</th><th>English</th></tr>
+  </thead>
+  <tbody id="wordBody"></tbody>
+</table>
+
 
 <!-- Reader Controls -->
-<div>
-  <label>Read from col: <input type="number" id="readFrom" value="1" min="1"></label>
-  <label>to col: <input type="number" id="readTo" value="2" min="1"></label>
-  <label>Repeat row: <input type="number" id="repeatRow" value="1" min="1"></label>
-  <button onclick="startReading()">▶ Play</button>
+<div style="margin-top: 20px;">
+  <h3>🔊 Reader Settings</h3>
+
+  <label>Read from column:</label>
+  <select id="readFromCol">
+    <option value="0">1</option>
+    <option value="1">2</option>
+    <option value="2">3</option>
+  </select>
+
+  <label> to </label>
+  <select id="readToCol">
+    <option value="0">1</option>
+    <option value="1">2</option>
+    <option value="2">3</option>
+  </select>
+
+  <br><br>
+
+  <label>From row:</label>
+  <input type="number" id="startRow" value="1" min="1" style="width: 50px;">
+  <label>to row:</label>
+  <input type="number" id="endRow" value="30" min="1" style="width: 50px;">
+
+  <br><br>
+
+  <label>Repeat each row:</label>
+  <input type="number" id="repeatCount" value="1" min="1" style="width: 50px;">
+
+  <br><br>
+
+  <!-- Language selectors -->
+  <label>Column 1 Lang:</label>
+  <select id="langCol0">
+    <option value="es-ES">🇪🇸 Spanish</option>
+    <option value="en-US">🇬🇧 English</option>
+  </select>
+
+  <label>Column 2 Lang:</label>
+  <select id="langCol1">
+    <option value="en-US">🇬🇧 English</option>
+    <option value="es-ES">🇪🇸 Spanish</option>
+  </select>
+
+  <label>Column 3 Lang:</label>
+  <select id="langCol2">
+    <option value="en-US">🇬🇧 English</option>
+    <option value="es-ES">🇪🇸 Spanish</option>
+  </select>
+
+  <br><br>
+
+  <button onclick="startReading()">▶️ Play</button>
   <button onclick="pauseReading()">⏸ Pause</button>
-  <button onclick="resumeReading()">▶ Resume</button>
+  <button onclick="resumeReading()">⏵ Resume</button>
 </div>
 
-<!-- Placeholder for 90 tables -->
-<div id="tablesContainer"></div>
 
-<!-- Placeholder for Flashcard Screen -->
-<div id="flashcardScreen" class="hidden">
-  <div id="flashcardWord"></div>
-  <button onclick="markKnown(true)">I know</button>
-  <button onclick="markKnown(false)">No</button>
-</div>
 
-<!-- Paste your plaintext into this hidden element -->
-<pre id="wordlist" class="hidden">
-<!-- EXAMPLE FORMAT -->
-Que   that   or what
-Gracias   thanks   or graces
-Tu   you   'not formal pronoun'
-... (up to 2000 lines)
-</pre>
+
+<!-- Your raw plain text input -->
+<textarea id="rawWords" style="display:none;">
+que	that
+y	and
+en	in
+ser	to be
+haber	to have
+por	for
+con	with
+no	no
+una	a
+su	his
+yo	I
+te	you
+lo	it
+él	he
+como	as
+más	more
+pero	but
+sus	their
+le	him
+ya	already
+o	or
+fue	was
+era	was
+eres	are
+esto	this
+hay	there is
+sí	yes
+aquí	here
+todo	als
+cuando	 win
+te	clock
+lo	it
+él	he
+como	as
+más	more
+pero	but
+sus	their
+le	him
+ya	already
+o	or
+fue	was
+era	was
+eres	are
+esto	this
+hay	there is
+sí	yes
+aquí	here
+todo	all
+cuando	 when>
+... (continue up to 2000+ lines)
+</textarea>
 
 <script>
-let wordData = [];
-let currentDay = 0;
-let flashcardWords = [], flashIndex = 0, known = [], unknown = [];
-let synth = window.speechSynthesis;
-let isPaused = false;
+window.addEventListener('DOMContentLoaded', () => {
+  const raw = document.getElementById('rawWords').value.trim();
+  const lines = raw.split('\n').map(line => line.trim()).filter(Boolean);
+  const totalDays = 90;
+  const linesPerDay = 30;
+  const wordBody = document.getElementById('wordBody');
+  const daySelector = document.getElementById('daySelector');
 
-// Parse and organize
-function splitIntoDays() {
-  const raw = document.getElementById("wordlist").innerText.trim().split("\n");
-  const totalLines = raw.length;
-  const linesPerDay = Math.ceil(totalLines / 90);
-  for (let i = 0; i < 90; i++) {
-    let start = i * linesPerDay;
-    let end = start + linesPerDay;
-    let group = raw.slice(start, end).map(line => line.split(/\s{2,}|\t+/));
-    wordData.push(group);
-  }
-}
+  // Build one great table with all rows
+  lines.forEach((line, index) => {
+  const words = line.trim().split(/\s+/);
 
-function createTables() {
-  let container = document.getElementById("tablesContainer");
-  for (let i = 0; i < 90; i++) {
-    let table = document.createElement("table");
-    table.id = `day${i+1}`;
-    table.classList.add("hidden");
-    wordData[i].forEach((cols, idx) => {
-      let row = table.insertRow();
-      cols.forEach((word, cidx) => {
-        let cell = row.insertCell();
-        cell.innerText = word;
-        cell.dataset.row = idx;
-        cell.dataset.col = cidx;
-      });
-      let btn = row.insertCell();
-      btn.innerHTML = `<button onclick="startFlashcard(${i}, ${idx})">🃏</button>`;
-    });
-    container.appendChild(table);
-  }
-  // Fill selector
-  let selector = document.getElementById("daySelector");
-  for (let i = 1; i <= 90; i++) {
-    let opt = document.createElement("option");
+  if (words.length < 2) return;
+
+  const col1 = words[0];
+  const col2 = words[1];
+  const col3 = words.slice(2).join(' '); // everything else
+
+  const row = document.createElement('tr');
+  const td1 = document.createElement('td');
+  const td2 = document.createElement('td');
+  const td3 = document.createElement('td');
+
+  td1.textContent = col1.replace(/-/g, ' '); // Replace hyphen with space visually
+  td2.textContent = col2.replace(/-/g, ' ');
+  td3.textContent = col3.replace(/-/g, ' ');
+
+  row.appendChild(td1);
+  row.appendChild(td2);
+  row.appendChild(td3);
+
+  row.classList.add('day-row');
+  row.dataset.index = index;
+
+  wordBody.appendChild(row);
+});
+
+  // Build selector
+  const totalRows = lines.length;
+  const totalTableDays = Math.ceil(totalRows / linesPerDay);
+  for (let i = 1; i <= totalTableDays; i++) {
+    const opt = document.createElement('option');
     opt.value = i;
-    opt.text = `Day ${i}`;
-    selector.appendChild(opt);
+    opt.textContent = `Day ${i}`;
+    daySelector.appendChild(opt);
   }
-}
 
-function showSelectedDay() {
-  let sel = parseInt(document.getElementById("daySelector").value);
-  document.querySelectorAll("table").forEach(t => t.classList.add("hidden"));
-  document.getElementById(`day${sel}`).classList.remove("hidden");
-  currentDay = sel - 1;
-}
-
-function startFlashcard(day, rowIdx) {
-  flashcardWords = [wordData[day][rowIdx].slice(0,2)];
-  flashIndex = 0;
-  known = [];
-  unknown = [];
-  document.getElementById("flashcardScreen").classList.remove("hidden");
-  showFlashcard();
-}
-
-function showFlashcard() {
-  let [foreign, trans] = flashcardWords[flashIndex];
-  document.getElementById("flashcardWord").innerText = foreign;
-}
-
-function markKnown(isKnown) {
-  let row = flashcardWords[flashIndex];
-  if (isKnown) known.push(row);
-  else unknown.push(row);
-  flashIndex++;
-  if (flashIndex >= flashcardWords.length) {
-    document.getElementById("flashcardScreen").classList.add("hidden");
-    alert(`Known: ${known.length}, Unknown: ${unknown.length}`);
-    rebuildTableWithUnknowns();
-  } else {
-    showFlashcard();
+  // Show only 30 rows per day
+  function showDay(dayNum) {
+    const start = (dayNum - 1) * linesPerDay;
+    const end = dayNum * linesPerDay;
+    document.querySelectorAll('.day-row').forEach(row => {
+      const idx = parseInt(row.dataset.index, 10);
+      row.style.display = (idx >= start && idx < end) ? 'table-row' : 'none';
+    });
   }
-}
 
-function rebuildTableWithUnknowns() {
-  let table = document.getElementById(`day${currentDay + 1}`);
-  for (let r = table.rows.length - 1; r >= 0; r--) {
-    let cell = table.rows[r].cells[0]?.innerText;
-    if (!unknown.find(u => u[0] === cell)) {
-      table.deleteRow(r);
-    }
-  }
-}
+  // Hook selector
+  daySelector.addEventListener('change', e => {
+    showDay(parseInt(e.target.value));
+  });
 
-function startReading() {
-  isPaused = false;
-  let from = parseInt(document.getElementById("readFrom").value) - 1;
-  let to = parseInt(document.getElementById("readTo").value) - 1;
-  let repeat = parseInt(document.getElementById("repeatRow").value);
-  let table = document.getElementById(`day${currentDay + 1}`);
-  let rows = Array.from(table.rows);
-  let i = 0;
+  // Show day 1 by default
+  daySelector.value = 1;
+  showDay(1);
+});
 
-  function readRow() {
-    if (i >= rows.length || isPaused) return;
-    let cells = rows[i].cells;
-    for (let c = 0; c < cells.length; c++) cells[c].classList.remove("highlight");
-    let words = [];
-    for (let j = from; j <= to; j++) {
-      if (cells[j]) {
-        words.push(cells[j].innerText);
-        cells[j].classList.add("highlight");
-      }
-    }
-    let utter = new SpeechSynthesisUtterance(words.join(" "));
-    utter.onend = () => {
-      if (--repeat > 0) {
-        synth.speak(utter);
-      } else {
-        i++;
-        repeat = parseInt(document.getElementById("repeatRow").value);
-        readRow();
-      }
-    };
+
+
+
+
+let readingPaused = false;
+let readingStopped = false;
+let synth = window.speechSynthesis;
+
+function speakText(text, lang) {
+  return new Promise(resolve => {
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = lang;
+    utter.onend = () => resolve();
     synth.speak(utter);
+  });
+}
+
+async function startReading() {
+  readingPaused = false;
+  readingStopped = false;
+
+  const fromCol = parseInt(document.getElementById('readFromCol').value);
+  const toCol = parseInt(document.getElementById('readToCol').value);
+  const startRow = parseInt(document.getElementById('startRow').value) - 1;
+  const endRow = parseInt(document.getElementById('endRow').value) - 1;
+  const repeat = parseInt(document.getElementById('repeatCount').value);
+
+  const lang1 = document.getElementById('langCol0').value;
+  const lang2 = document.getElementById('langCol1').value;
+  const lang3 = document.getElementById('langCol2').value;
+
+  const langs = [lang1, lang2, lang3];
+
+  const rows = Array.from(document.querySelectorAll('.day-row'));
+
+  for (let r = startRow; r <= endRow && r < rows.length; r++) {
+    const row = rows[r];
+    for (let rep = 0; rep < repeat; rep++) {
+      for (let c = fromCol; c <= toCol; c++) {
+        if (readingStopped) return;
+
+        while (readingPaused) await new Promise(res => setTimeout(res, 100));
+
+        // Highlight
+        document.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
+        const cell = row.children[c];
+        if (cell) {
+          cell.classList.add('highlight');
+          await speakText(cell.textContent, langs[c]);
+        }
+      }
+    }
   }
 
-  readRow();
+  // Clean highlights
+  document.querySelectorAll('.highlight').forEach(el => el.classList.remove('highlight'));
 }
 
 function pauseReading() {
-  isPaused = true;
+  readingPaused = true;
   synth.pause();
 }
 
 function resumeReading() {
-  isPaused = false;
+  readingPaused = false;
   synth.resume();
 }
 
-splitIntoDays();
-createTables();
+
+
 </script>
+
 </body>
-</html>
+  </html>
